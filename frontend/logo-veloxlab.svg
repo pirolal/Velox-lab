@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 110" role="img" aria-labelledby="title desc">
+  <title id="title">Velox Lab Logo</title>
+  <desc id="desc">Logo with speed lines and ascending arrow in cyan to violet gradient</desc>
+  <defs>
+    <linearGradient id="veloxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#27D3F3"/>
+      <stop offset="52%" stop-color="#4D7DFF"/>
+      <stop offset="100%" stop-color="#8A4BFF"/>
+    </linearGradient>
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g transform="translate(8,14)" fill="none" stroke="url(#veloxGrad)" stroke-width="6" stroke-linecap="round" filter="url(#softGlow)">
+    <path d="M22 50 H90"/>
+    <path d="M10 62 H76" stroke-width="5" opacity="0.85"/>
+    <path d="M36 38 H102" stroke-width="4.5" opacity="0.7"/>
+    <circle cx="16" cy="50" r="4" fill="#4D7DFF" stroke="none"/>
+    <circle cx="102" cy="38" r="3.5" fill="#8A4BFF" stroke="none"/>
+    <path d="M114 38 L156 82 H177 L215 24 H185 L170 47 H146 Z" fill="url(#veloxGrad)" stroke="none"/>
+    <path d="M214 24 L250 24 L238 0" stroke-width="9"/>
+    <path d="M250 24 L238 0" stroke-width="9"/>
+  </g>
+
+  <text x="274" y="58" text-anchor="middle" font-family="'Space Grotesk', 'Segoe UI', sans-serif" font-size="42" font-weight="700" letter-spacing="2" fill="#E9F2FF">VELOX LAB</text>
+</svg>

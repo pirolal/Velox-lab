@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+
+    <title>Velox Lab</title>
+    <link rel="stylesheet"  href="/frontend/style.css" />
+</head>
+<body>
+    <header class="site-header">
+        <a class="brand" href="/frontend/index.html" aria-label="Velox Lab home">
+            <img src="/frontend/logo-veloxlab.svg" alt="Velox Lab logo" />
+        </a>
+        <nav class="top-nav">
+            <a href="/frontend/admin.html">Admin</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <section class="hero">
+                <h1>Velox Lab</h1>
+            <p>
+				Velox Lab: Non perdere la scia.
+                Strada, Pista, MTB. Solo i fatti, i dati e le storie che muovono il ciclismo moderno. Alla velocità di uno scatto.
+            </p>
+        </section>
+
+        <section>
+            <div class="section-head">
+                <h2>Ultime Notizie</h2>
+            </div>
+            <div id="news-grid" class="grid"></div>
+        </section>
+
+        <section class="gare-section">
+            <div class="section-head">
+                <h2>Gare in Programma</h2>
+            </div>
+            <div id="gare-list" class="gare-list"></div>
+        </section>
+    </main>
+
+    <script>
+        async function loadHomeFeed() {
+            const res = await fetch('/api/home?news_limit=24&future_only=true');
+            if (!res.ok) {
+                document.getElementById('news-grid').innerHTML = '<p>Impossibile caricare le notizie.</p>';
+                document.getElementById('gare-list').innerHTML = '<p>Impossibile caricare le gare.</p>';
+                return;
+            }
+
+            const data = await res.json();
+            const newsItems = data.news_items || [];
+            const gareItems = data.gare_items || [];
+
+            const cards = newsItems.map(n => `
+                <article class="card clickable" onclick="location.href='/frontend/detail.html?id=${n.id}'">
+                    <img src="${n.immagine_url}" alt="${n.titolo}" />
+                    <div class="card-body">
+                        <p class="chip">${n.categoria}</p>
+                        <h3>${n.titolo}</h3>
+                        <p>${n.sottotitolo || ''}</p>
+                    </div>
+                </article>
+            `).join('');
+            document.getElementById('news-grid').innerHTML = cards || '<p>Nessuna notizia disponibile.</p>';
+
+            const FALLBACK = 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=400&q=60';
+            const rows = gareItems.map(g => {
+                const d = new Date(g.data_gara);
+                const day = d.getDate();
+                const month = d.toLocaleDateString('it-IT', { month: 'short' }).toUpperCase();
+                const thumb = g.immagine_url || FALLBACK;
+                const badges = [
+                    g.distanza_km ? `${g.distanza_km}km ` : null,
+                    g.dislivello_m ? `${g.dislivello_m}m D+ ` : null,
+                ].filter(Boolean);
+                const description = g.descrizione ? `<p class="gara-description">${g.descrizione}</p>` : '';
+                return `
+                <article class="gara-card">
+                    <div class="gara-date">
+                        <span class="gara-day">${day}</span>
+                        <span class="gara-month">${month}</span>
+                    </div>
+                    <div class="gara-info">
+                        <span class="chip chip-gara">${g.categoria}</span>
+                        <h3>${g.nome}</h3>
+                        <p>📍 ${g.luogo}${g.orario_partenza ? ` • 🕘 ${g.orario_partenza}` : ''}</p>
+                        <div class="gara-badges">${badges.map(b => `<span>${b}</span>`).join('')}</div>
+                        ${description}
+                    </div>
+                    <img class="gara-thumb" src="${thumb}" alt="${g.nome}" />
+                </article>`;
+            }).join('');
+            document.getElementById('gare-list').innerHTML = rows || '<p>Nessuna gara in programma.</p>';
+        }
+
+        loadHomeFeed();
+    </script>
+</body>
+</html>

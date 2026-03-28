@@ -1,0 +1,73 @@
+<html lang="it">
+<head>
+    <title>Velox Lab</title>
+    <link rel="stylesheet" href="/frontend/style.css" />
+</head>
+<body>
+    <header class="site-header">
+        <a class="brand" href="/frontend/index.html" aria-label="Velox Lab home">
+            <img src="/frontend/logo-veloxlab.svg" alt="Velox Lab logo" />
+            <span class="brand-mark">Velox Lab</span>
+        </a>
+        <nav class="top-nav">
+            <a href="/frontend/index.html">Home</a>
+            <a href="/frontend/admin.html">Admin</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <a class="back-link" href="/">← Torna alla Home</a>
+        <article class="detail-card">
+            <img id="img" alt="Copertina articolo" />
+            <div class="detail-content">
+                <p id="categoria" class="chip"></p>
+                <h1 id="titolo"></h1>
+                <p id="sottotitolo" class="muted"></p>
+                <p id="meta" class="meta"></p>
+                <p id="testo" class="article-text"></p>
+                <a id="fonte" class="source-link" target="_blank" rel="noreferrer"></a>
+            </div>
+        </article>
+    </main>
+
+    <script>
+        async function resolveNewsId() {
+            const fromQuery = new URLSearchParams(window.location.search).get('id');
+            if (fromQuery) return fromQuery;
+
+            const res = await fetch('/api/news?limit=1');
+            const data = await res.json();
+            return data.items && data.items.length ? data.items[0].id : null;
+        }
+
+        resolveNewsId()
+            .then((id) => {
+                if (!id) throw new Error('Nessuna notizia disponibile');
+                return fetch(`/api/news/${id}`);
+            })
+            .then((res) => {
+                if (!res.ok) throw new Error('Notizia non trovata');
+                return res.json();
+            })
+            .then((data) => {
+                document.getElementById('titolo').innerText = data.titolo;
+                document.getElementById('sottotitolo').innerText = data.sottotitolo || '';
+                document.getElementById('categoria').innerText = data.categoria || 'Generale';
+                document.getElementById('img').src = data.immagine_url;
+                document.getElementById('testo').innerText = data.contenuto;
+                document.getElementById('meta').innerText = `Pubblicata il ${new Date(data.data_pubblicazione).toLocaleDateString('it-IT')}`;
+
+                const fonte = document.getElementById('fonte');
+                if (data.fonte_url) {
+                    fonte.href = data.fonte_url;
+                    fonte.innerText = 'Apri fonte originale';
+                } else {
+                    fonte.remove();
+                }
+            })
+            .catch(() => {
+                document.querySelector('.detail-content').innerHTML = '<h2>Notizia non trovata</h2>';
+            });
+    </script>
+</body>
+</html>

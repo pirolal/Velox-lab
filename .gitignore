@@ -1,0 +1,22 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# Local editor settings
+.vscode/
+
+# Local runtime data
+*.db
+*.sqlite3
+
+# Secrets and local credentials
+backend/admin_credentials.json
+.env
+
+# OS files
+.DS_Store
+Thumbs.db

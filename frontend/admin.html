@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <title>Velox Lab</title>
+    <link rel="stylesheet"  href="/frontend/style.css" />
+</head>
+<body class="admin-page">
+    <header class="site-header">
+        <a class="brand" href="/frontend/index.html" aria-label="Velox Lab home">
+            <img src="/frontend/logo-veloxlab.svg" alt="Velox Lab logo" />
+            <span class="brand-mark">Admin</span>
+        </a>
+        <nav class="top-nav">
+            <a href="/frontend/index.html">Home</a>
+        </nav>
+    </header>
+
+    <main class="container admin-layout admin-shell">
+        <section class="panel admin-hero-panel">
+            <div class="admin-hero-head">
+                <h1>Control Room</h1>
+                <p class="muted">Gestisci notizie e calendario gare da un'unica dashboard.</p>
+            </div>
+            <div class="admin-auth-row">
+                <div class="admin-auth-card" id="login-panel">
+                    <h2>Accesso Admin</h2>
+                    <p class="muted">Effettua il login per sbloccare i pannelli di gestione.</p>
+                    <form id="login-form" class="form-stack">
+                        <input type="text" id="user" placeholder="Username" required autocomplete="username" />
+                        <input type="password" id="pass" placeholder="Password" required autocomplete="current-password" />
+                        <button type="submit">Login</button>
+                    </form>
+                </div>
+
+                <div class="admin-auth-card hidden" id="session-panel" hidden>
+                    <h2>Sessione Attiva</h2>
+                    <p class="muted">Sei autenticato come <strong id="admin-user-label">admin</strong>.</p>
+                    <button type="button" id="logout-btn" class="btn-danger">Logout</button>
+                </div>
+            </div>
+            <p class="muted" id="login-status" aria-live="polite"></p>
+        </section>
+
+        <section class="panel hidden protected admin-stats" hidden>
+            <h2>Panoramica Rapida</h2>
+            <div class="stats-grid">
+                <article class="stat-card">
+                    <span class="stat-label">Notizie Totali</span>
+                    <strong id="stat-news">0</strong>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-label">Gare Totali</span>
+                    <strong id="stat-gare">0</strong>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-label">Gare Principali</span>
+                    <strong id="stat-main-gare">0</strong>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-label">Prossima Gara</span>
+                    <strong id="stat-next-gara">-</strong>
+                </article>
+            </div>
+        </section>
+
+        <section class="panel hidden protected" hidden>
+            <h2 id="news-form-title">Aggiungi Notizia</h2>
+            <form id="news-form" class="form-stack">
+                <input type="text" id="titolo" placeholder="Titolo" required />
+                <input type="text" id="sottotitolo" placeholder="Sottotitolo" />
+                <input type="text" id="categoria-news" placeholder="Categoria (es. World Tour)" required />
+                <input type="text" id="img" placeholder="URL o file locale (es. /frontend/images/pogacar.jpg)" required />
+                <input type="url" id="fonte" placeholder="URL fonte (opzionale)" />
+                <input type="date" id="data-news" required />
+                <textarea id="contenuto" placeholder="Contenuto articolo" required></textarea>
+                <div class="form-actions">
+                    <button type="submit" id="news-submit-btn">Pubblica Notizia</button>
+                    <button type="button" id="cancel-news-edit" class="btn-secondary hidden">Annulla Modifica</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel hidden protected" hidden>
+            <h2 id="gara-form-title">Aggiungi Gara</h2>
+            <form id="gara-form" class="form-stack">
+                <div class="form-grid two-col">
+                    <input type="text" id="nome-gara" placeholder="Nome gara" required />
+                    <input type="text" id="luogo-gara" placeholder="Luogo" required />
+                    <input type="text" id="categoria-gara" placeholder="Categoria (es. MTB)" required />
+                    <input type="date" id="data-gara" required />
+                    <input type="number" id="km-gara" placeholder="Distanza (km)" min="1" max="5000" />
+                    <input type="number" id="dislivello-gara" placeholder="Dislivello (m)" min="0" max="70000" />
+                    <input type="time" id="orario-gara" placeholder="Orario partenza" />
+                </div>
+                <input type="text" id="img-gara" placeholder="URL o file locale (es. /frontend/images/pogacar.jpg)" />
+                <textarea id="desc-gara" placeholder="Descrizione gara"></textarea>
+                <label class="check">
+                    <input type="checkbox" id="main-gara" /> Gara principale
+                </label>
+                <div class="form-actions">
+                    <button type="submit" id="gara-submit-btn">Pubblica Gara</button>
+                    <button type="button" id="cancel-gara-edit" class="btn-secondary hidden">Annulla Modifica</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel hidden protected" hidden>
+            <h2>Elenco Notizie</h2>
+            <div id="news-list"></div>
+        </section>
+
+        <section class="panel hidden protected" hidden>
+            <h2>Elenco Gare</h2>
+            <div id="gare-list"></div>
+        </section>
+    </main>
+
+    <script>
+        let basicAuth = null;
+        let loggedUser = '';
+        let editingNewsId = null;
+        let editingGaraId = null;
+        let newsCache = [];
+        let gareCache = [];
+
+        const authHeader = () => basicAuth ? `Basic ${basicAuth}` : null;
+
+        async function apiRequest(path, { method = 'GET', body = null, requiresAuth = true } = {}) {
+            const headers = {};
+            if (body) headers['Content-Type'] = 'application/json';
+            if (requiresAuth) {
+                if (!basicAuth) throw new Error('Login richiesto.');
+                headers.Authorization = authHeader();
+            }
+
+            const res = await fetch(path, {
+                method,
+                headers,
+                body: body ? JSON.stringify(body) : undefined
+            });
+
+            if (!res.ok) {
+                let msg = 'Errore API';
+                try {
+                    const payload = await res.json();
+                    if (Array.isArray(payload.detail)) {
+                        msg = payload.detail.map((d) => d.msg || JSON.stringify(d)).join(' | ');
+                    } else {
+                        msg = payload.detail || payload.message || msg;
+                    }
+                } catch (_) {
+                    msg = `${msg} (${res.status})`;
+                }
+                throw new Error(msg);
+            }
+
+            if (res.status === 204) return null;
+            const ctype = res.headers.get('content-type') || '';
+            return ctype.includes('application/json') ? res.json() : null;
+        }
+
+        function setNewsEditMode(item = null) {
+            const title = document.getElementById('news-form-title');
+            const submit = document.getElementById('news-submit-btn');
+            const cancel = document.getElementById('cancel-news-edit');
+            editingNewsId = item ? item.id : null;
+            title.textContent = item ? `Modifica Notizia #${item.id}` : 'Aggiungi Notizia';
+            submit.textContent = item ? 'Salva Modifiche' : 'Pubblica Notizia';
+            cancel.classList.toggle('hidden', !item);
+        }
+
+        function setGaraEditMode(item = null) {
+            const title = document.getElementById('gara-form-title');
+            const submit = document.getElementById('gara-submit-btn');
+            const cancel = document.getElementById('cancel-gara-edit');
+            editingGaraId = item ? item.id : null;
+            title.textContent = item ? `Modifica Gara #${item.id}` : 'Aggiungi Gara';
+            submit.textContent = item ? 'Salva Modifiche' : 'Pubblica Gara';
+            cancel.classList.toggle('hidden', !item);
+        }
+
+        function resetNewsForm() {
+            document.getElementById('news-form').reset();
+            setNewsEditMode();
+        }
+
+        function resetGaraForm() {
+            document.getElementById('gara-form').reset();
+            setGaraEditMode();
+        }
+
+        function normalizeDateValue(raw) {
+            const value = (raw || '').trim();
+            if (!value) return '';
+
+            // Accetta anche input manuale nel formato italiano dd/mm/yyyy.
+            const it = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (it) {
+                return `${it[3]}-${it[2]}-${it[1]}`;
+            }
+
+            return value;
+        }
+
+        function populateNewsForm(item) {
+            document.getElementById('titolo').value = item.titolo || '';
+            document.getElementById('sottotitolo').value = item.sottotitolo || '';
+            document.getElementById('categoria-news').value = item.categoria || '';
+            document.getElementById('img').value = item.immagine_url || '';
+            document.getElementById('fonte').value = item.fonte_url || '';
+            document.getElementById('data-news').value = item.data_pubblicazione || '';
+            document.getElementById('contenuto').value = item.contenuto || '';
+            setNewsEditMode(item);
+            document.getElementById('news-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function populateGaraForm(item) {
+            document.getElementById('nome-gara').value = item.nome || '';
+            document.getElementById('luogo-gara').value = item.luogo || '';
+            document.getElementById('categoria-gara').value = item.categoria || '';
+            document.getElementById('data-gara').value = item.data_gara || '';
+            document.getElementById('km-gara').value = item.distanza_km ?? '';
+            document.getElementById('dislivello-gara').value = item.dislivello_m ?? '';
+            document.getElementById('orario-gara').value = item.orario_partenza || '';
+            document.getElementById('img-gara').value = item.immagine_url || '';
+            document.getElementById('desc-gara').value = item.descrizione || '';
+            document.getElementById('main-gara').checked = Boolean(item.is_principale);
+            setGaraEditMode(item);
+            document.getElementById('gara-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function setAuthUI(isLogged) {
+            const sections = document.querySelectorAll('.protected');
+            const loginPanel = document.getElementById('login-panel');
+            const sessionPanel = document.getElementById('session-panel');
+            const adminLabel = document.getElementById('admin-user-label');
+
+            sections.forEach((section) => {
+                section.classList.toggle('hidden', !isLogged);
+                section.hidden = !isLogged;
+            });
+
+            loginPanel.classList.toggle('hidden', isLogged);
+            loginPanel.hidden = isLogged;
+            sessionPanel.classList.toggle('hidden', !isLogged);
+            sessionPanel.hidden = !isLogged;
+            adminLabel.textContent = loggedUser || 'admin';
+        }
+
+        function formatGaraCompactDetails(g) {
+            const detailParts = [];
+            if (g.distanza_km) detailParts.push(`${g.distanza_km} km`);
+            if (g.dislivello_m) detailParts.push(`${g.dislivello_m} m D+`);
+            if (g.orario_partenza) detailParts.push(`Partenza ${g.orario_partenza}`);
+            return detailParts.join(' • ');
+        }
+
+        function updateDashboardStats() {
+            document.getElementById('stat-news').textContent = String(newsCache.length);
+            document.getElementById('stat-gare').textContent = String(gareCache.length);
+            document.getElementById('stat-main-gare').textContent = String(gareCache.filter((g) => Boolean(g.is_principale)).length);
+
+            const next = gareCache.length ? gareCache[0] : null;
+            document.getElementById('stat-next-gara').textContent = next
+                ? `${next.nome} (${new Date(next.data_gara).toLocaleDateString('it-IT')})`
+                : '-';
+        }
+
+        function renderLists() {
+            const newsList = document.getElementById('news-list');
+            const gareList = document.getElementById('gare-list');
+
+            newsList.innerHTML = newsCache.length ? newsCache.map((n) => `
+                <div class="row-item">
+                    <span class="row-label">#${n.id} - ${n.titolo}</span>
+                    <div class="row-actions">
+                        <button type="button" class="btn-secondary" data-action="edit-news" data-id="${n.id}">Modifica</button>
+                        <button type="button" data-action="delete-news" data-id="${n.id}">Elimina</button>
+                    </div>
+                </div>
+            `).join('') : '<p class="muted">Nessuna notizia disponibile.</p>';
+
+            gareList.innerHTML = gareCache.length ? gareCache.map((g) => `
+                <div class="row-item">
+                    <span class="row-label">#${g.id} - ${g.nome} (${new Date(g.data_gara).toLocaleDateString('it-IT')})<br/><small class="muted">${formatGaraCompactDetails(g) || 'Nessun dettaglio tecnico inserito.'}</small></span>
+                    <div class="row-actions">
+                        <button type="button" class="btn-secondary" data-action="edit-gara" data-id="${g.id}">Modifica</button>
+                        <button type="button" data-action="delete-gara" data-id="${g.id}">Elimina</button>
+                    </div>
+                </div>
+            `).join('') : '<p class="muted">Nessuna gara disponibile.</p>';
+        }
+
+        async function refreshLists() {
+            if (!basicAuth) return;
+            try {
+                const data = await apiRequest('/api/home?news_limit=100&future_only=false', { requiresAuth: false });
+                newsCache = data.news_items || [];
+                gareCache = data.gare_items || [];
+                renderLists();
+                updateDashboardStats();
+            } catch (err) {
+                newsCache = [];
+                gareCache = [];
+                renderLists();
+                updateDashboardStats();
+                document.getElementById('news-list').innerHTML = '<p class="muted">Impossibile caricare le notizie.</p>';
+                document.getElementById('gare-list').innerHTML = '<p class="muted">Impossibile caricare le gare.</p>';
+                alert(err.message || 'Errore nel caricamento liste.');
+            }
+        }
+
+        async function deleteNews(id) {
+            await apiRequest(`/api/news/${id}`, { method: 'DELETE' });
+            await refreshLists();
+        }
+
+        async function deleteGara(id) {
+            await apiRequest(`/api/gare/${id}`, { method: 'DELETE' });
+            await refreshLists();
+        }
+
+        document.getElementById('news-list').addEventListener('click', async (e) => {
+            const btn = e.target.closest('button[data-action]');
+            if (!btn) return;
+            const id = Number(btn.dataset.id);
+            const action = btn.dataset.action;
+
+            if (action === 'edit-news') {
+                const item = newsCache.find((news) => news.id === id);
+                if (!item) return alert('Notizia non trovata nell\'elenco corrente.');
+                populateNewsForm(item);
+                return;
+            }
+
+            if (action === 'delete-news') {
+                try {
+                    await deleteNews(id);
+                } catch (err) {
+                    alert(err.message || 'Errore eliminazione notizia.');
+                }
+            }
+        });
+
+        document.getElementById('gare-list').addEventListener('click', async (e) => {
+            const btn = e.target.closest('button[data-action]');
+            if (!btn) return;
+            const id = Number(btn.dataset.id);
+            const action = btn.dataset.action;
+
+            if (action === 'edit-gara') {
+                const item = gareCache.find((gara) => gara.id === id);
+                if (!item) return alert('Gara non trovata nell\'elenco corrente.');
+                populateGaraForm(item);
+                return;
+            }
+
+            if (action === 'delete-gara') {
+                try {
+                    await deleteGara(id);
+                } catch (err) {
+                    alert(err.message || 'Errore eliminazione gara.');
+                }
+            }
+        });
+
+        document.getElementById('news-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!basicAuth) return;
+
+            const body = {
+                titolo: document.getElementById('titolo').value,
+                sottotitolo: document.getElementById('sottotitolo').value || null,
+                contenuto: document.getElementById('contenuto').value,
+                categoria: document.getElementById('categoria-news').value,
+                immagine_url: document.getElementById('img').value,
+                fonte_url: document.getElementById('fonte').value || null,
+                data_pubblicazione: document.getElementById('data-news').value
+            };
+
+            const isEditing = editingNewsId !== null;
+            const path = isEditing ? `/api/news/${editingNewsId}` : '/api/news';
+            const method = isEditing ? 'PUT' : 'POST';
+
+            try {
+                await apiRequest(path, { method, body });
+                resetNewsForm();
+                await refreshLists();
+            } catch (err) {
+                alert(err.message || 'Errore salvataggio notizia.');
+            }
+        });
+
+        document.getElementById('gara-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!basicAuth) return;
+
+            const normalizedDate = normalizeDateValue(document.getElementById('data-gara').value);
+            if (!normalizedDate) {
+                alert('Inserisci una data valida per la gara.');
+                return;
+            }
+
+            const body = {
+                nome: document.getElementById('nome-gara').value,
+                descrizione: document.getElementById('desc-gara').value || null,
+                data_gara: normalizedDate,
+                luogo: document.getElementById('luogo-gara').value,
+                categoria: document.getElementById('categoria-gara').value,
+                immagine_url: document.getElementById('img-gara').value || null,
+                distanza_km: document.getElementById('km-gara').value ? Number(document.getElementById('km-gara').value) : null,
+                dislivello_m: document.getElementById('dislivello-gara').value ? Number(document.getElementById('dislivello-gara').value) : null,
+                orario_partenza: document.getElementById('orario-gara').value || null,
+                is_principale: document.getElementById('main-gara').checked
+            };
+
+            const isEditing = editingGaraId !== null;
+            const path = isEditing ? `/api/gare/${editingGaraId}` : '/api/gare';
+            const method = isEditing ? 'PUT' : 'POST';
+
+            try {
+                await apiRequest(path, { method, body });
+                resetGaraForm();
+                await refreshLists();
+            } catch (err) {
+                alert(err.message || 'Errore salvataggio gara.');
+            }
+        });
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = document.getElementById('user').value.trim();
+            const pass = document.getElementById('pass').value.trim();
+            const statusEl = document.getElementById('login-status');
+
+            try {
+                const data = await apiRequest('/api/admin/login', {
+                    method: 'POST',
+                    body: { username: user, password: pass },
+                    requiresAuth: false
+                });
+
+                if (!data || !data.ok) {
+                    throw new Error('Credenziali non valide.');
+                }
+
+                basicAuth = btoa(`${user}:${pass}`);
+                loggedUser = user;
+                setAuthUI(true);
+
+                statusEl.textContent = 'Login effettuato.';
+
+                await refreshLists();
+                document.getElementById('pass').value = '';
+            } catch (err) {
+                statusEl.textContent = err.message || 'Credenziali non valide.';
+                basicAuth = null;
+                loggedUser = '';
+                setAuthUI(false);
+            }
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            basicAuth = null;
+            loggedUser = '';
+            setAuthUI(false);
+            resetNewsForm();
+            resetGaraForm();
+            newsCache = [];
+            gareCache = [];
+            updateDashboardStats();
+            document.getElementById('login-status').textContent = 'Logout effettuato.';
+            document.getElementById('news-list').innerHTML = '';
+            document.getElementById('gare-list').innerHTML = '';
+        });
+
+        document.getElementById('cancel-news-edit').addEventListener('click', resetNewsForm);
+        document.getElementById('cancel-gara-edit').addEventListener('click', resetGaraForm);
+
+        setAuthUI(false);
+    </script>
+</body>
+</html>
