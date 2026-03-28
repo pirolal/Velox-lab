@@ -12,6 +12,7 @@ venv/
 # Local runtime data
 *.db
 *.sqlite3
+!/ciclismo.db
 
 # Secrets and local credentials
 backend/admin_credentials.json
